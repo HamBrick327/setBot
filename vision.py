@@ -12,6 +12,8 @@ def detectTable(img):
 
     # Apply binary thresholding
     mask = cv2.inRange(gray, 240, 255)
+    # mask = cv2.erode(mask, None, iterations=2)
+    # mask = cv2.dilate(mask, None, iterations=2)
 
     # Find contours
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE) ## --> tuple of all contours
@@ -20,28 +22,45 @@ def detectTable(img):
     sumh = [0, 0]
     # Draw rectangles on the original image
     cv2.drawContours(image, contours, -1, (0, 255, 0), 2)
+
+    for contour in contours:
+        if cv2.contourArea(contour) < 2000:
+            contours = list(contours)
+            contours.remove(contour)
+
     print(f"{len(contours)} cards detected")
     ## get the "center" of the card, for each card
-    for contour in contours:
-        outerx, outery, outerw, outerh = cv2.boundingRect(contour)
+    for contour in contours: ## I barely understand how half of this stuff works, but dammit I'm gonna make it work
+        x, y, w, h = cv2.boundingRect(contour)
         innerRect = cv2.minAreaRect(contour)
+        print(innerRect)
 
-        box = np.int32(cv2.boxPoints(innerRect))
-        dst_pts = np.array([[0, height-1],
-                        [0, 0],
-                        [width-1, 0],
-                        [width-1, height-1]], dtype="float32")
+        # dst = np.array([
+        #     [x, y],         # Top-left
+        #     [x + w, y],     # Top-right
+        #     [x + w, y + h],     # Bottom-left
+        #     [x, y + h]  # Bottom-right
+        # ], dtype=np.float32)
 
-        center = (int((outerx + (outerx+outerw))/2), int((outery + (outery+outerh))/2))
+        box = np.float32(cv2.boxPoints(innerRect))
+        angle = innerRect[2]
+        if angle > 45:
+            angle = 90 - angle
+        elif angle <= 45:
+            angle *= -1
 
-        warped = cv2.warpPerspective(image, box, (180, 266))
+        center = (int((x + (x+w))/2), int((y + (y+h))/2))
+        matrix = cv2.getRotationMatrix2D(center, (angle * -1), 1.0)
+        rotated = cv2.warpAffine(image, matrix, (w, h))
 
         cv2.circle(image, center, 5, (0, 0, 255), 2)
-        cv2.rectangle(image, (outerx, outery), (outerx+outerw, outery+outerh), (255, 0, 0), 2)
-        cv2.rectangle(image, (box[0, 0], box[0, 1]), (box[2, 0], box[2, 1]), (255, 255, 0), 2)
+        cv2.rectangle(image, (x, y), (x+w, y+h), (255, 0, 0), 2)
+        cv2.drawContours(image, [np.int32(box)], 0, (255, 255, 0), 2)
+
+        cv2.imwrite(f"/home/hambrick/setbot/warped/warped{list(contours).index(contour)}.jpg", rotated)
 
     # Show the image with detected rectangles
-    cv2.imshow('Detected Rectangles', image)
+    # cv2.imshow('Detected Cards', image)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
 
