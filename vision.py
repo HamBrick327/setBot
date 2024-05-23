@@ -1,17 +1,19 @@
 import cv2
 import numpy as np
+import os
+from time import sleep, time
 
 ''' working with test image, need to ensure carpet is not in image. '''
 
 ## get temp image
-image = cv2.imread('./testimage3.png')
+image = cv2.imread('/home/hambrick/setbot/grayimage.jpg')
 
 def detectTable(img):
     # Convert to grayscale
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-
+    cv2.imwrite("grayimage.jpg", gray)
     # Apply binary thresholding
-    mask = cv2.inRange(gray, 240, 255)
+    mask = cv2.inRange(gray, 230, 255)
     # mask = cv2.erode(mask, None, iterations=2)
     # mask = cv2.dilate(mask, None, iterations=2)
 
@@ -25,17 +27,16 @@ def detectTable(img):
     # Draw rectangles on the original image
     cv2.drawContours(image, contours, -1, (0, 255, 0), 2)
 
-    # for contour in contours:
-    #     if cv2.contourArea(contour) < 2000:
-    #         contours = list(contours)
-    #         contours.remove(contour)
-
-
-    print(f"{len(contours)} cards detected")
     ## get the "center" of the card, for each card
     for i, contour in enumerate(contours): ## I barely understand how half of this stuff works, but dammit I'm gonna make it work
+        if cv2.contourArea(contour) < 10_000:
+            # np.delete(contours, contour)
+            continue
+
+        print(cv2.contourArea(contour))
+
         x, y, w, h = cv2.boundingRect(contour)
-        print(x, y)
+        # print(x, y)
         innerRect = cv2.minAreaRect(contour)
         center = ((x + (w//2)), (y + (h//2)))
 
@@ -50,20 +51,25 @@ def detectTable(img):
             ## very useful
             angle = angle
 
-        cv2.circle(image, center, 2, (0, 0, 255), 3)
-        # cv2.rectangle(image, (x, y), (x+w, y+h), (255, 0, 0), 2)
+        cv2.rectangle(image, (x, y), (x+w, y+h), (255, 0, 0), 2)
         cv2.drawContours(image, [np.int32(box)], 0, (255, 255, 0), 2)
         
-        print(center)
+        # print(center)
         matrix = cv2.getRotationMatrix2D(center, angle, 1.0)
         rotated = cv2.warpAffine(image, matrix, (image.shape[1], image.shape[0]))
 
         rotated = rotated[y:y+h, x:x+w]
 
-        cv2.imwrite(f"rotated{i}.jpg", rotated)
+        cv2.imwrite(os.path.join("cards", f"rotated{i}.jpg"), rotated)
 
+    ## find card color, then bitwise compare to known cards
+    for i, im in enumerate(os.listdir("./cards")):
+        im = os.path.join(os.getcwd(), "cards", im)
+        print(im)
+        img = cv2.imread(im)
 
     # Show the image with detected rectangles
+    print(len(os.listdir("cards/")), "cards detected")
     cv2.imwrite('DetectedCards.jpg', image)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
